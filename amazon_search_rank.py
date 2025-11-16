@@ -88,6 +88,7 @@ def build_proxy_argument() -> str:
     host = os.environ.get("IPROYAL_HOST")
     port = os.environ.get("IPROYAL_PORT")
     if not host or not port:
+        LOGGER.warning("IPROYAL_HOST または IPROYAL_PORT が設定されていません。プロキシ未使用で実行します。")
         return ""
 
     username = os.environ.get("IPROYAL_USERNAME", "")
@@ -117,6 +118,9 @@ def chrome_driver():
     proxy_arg = build_proxy_argument()
     if proxy_arg:
         options.add_argument(f"--proxy-server={proxy_arg}")
+        LOGGER.info("Proxy を経由してアクセスします: %s", proxy_arg.rsplit("@", 1)[-1])
+    else:
+        LOGGER.warning("Proxy 未設定のため、直接接続で実行します。")
 
     driver = webdriver.Chrome(
         service=Service(ChromeDriverManager().install()),
