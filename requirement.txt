@@ -1,3 +1,2 @@
 selenium
-google-cloud-storage
 webdriver-manager
