@@ -137,9 +137,19 @@ def wait_for_results(driver) -> None:
 
 def go_to_search_results(driver, keyword: str) -> None:
     driver.get(AMAZON_URL)
-    search_box = WebDriverWait(driver, 30).until(
-        EC.presence_of_element_located((By.ID, "twotabsearchtextbox"))
-    )
+    try:
+        search_box = WebDriverWait(driver, 30).until(
+            EC.presence_of_element_located((By.ID, "twotabsearchtextbox"))
+        )
+    except TimeoutException as exc:
+        current_url = driver.current_url
+        page_preview = (driver.page_source or "")[:1500]
+        LOGGER.error(
+            "検索ボックス取得に失敗: keyword='%s' url='%s'", keyword, current_url
+        )
+        LOGGER.debug("page preview: %s", page_preview)
+        raise exc
+
     search_box.clear()
     search_box.send_keys(keyword)
     search_box.send_keys(Keys.ENTER)
