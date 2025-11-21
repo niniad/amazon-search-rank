@@ -181,9 +181,13 @@ def get_item_type(element, sponsored_label_cache=None) -> str:
                 label_positions = []
                 for label in labels:
                     try:
+                        # Only consider visible labels
+                        if not label.is_displayed():
+                            continue
+                        
                         label_text = label.text or ''
                         # Only consider short text (single word/phrase)
-                        if len(label_text) < 50:
+                        if len(label_text) < 50 and label_text.strip():
                             label_positions.append((label.location['y'], label_text))
                     except:
                         continue
@@ -225,9 +229,13 @@ def process_page(
         )
         for label in labels:
             try:
+                # Only consider visible labels to avoid false positives
+                if not label.is_displayed():
+                    continue
+                
                 label_text = label.text or ''
                 # Only consider short text (single word/phrase)
-                if len(label_text) < 50:
+                if len(label_text) < 50 and label_text.strip():
                     sponsored_label_cache.append((label.location['y'], label_text))
             except:
                 continue
