@@ -1,0 +1,4 @@
+  File "C:\Users\ninni\Documents\projects\amazon-search-rank\amazon_search_rank.py", line 177
+    global MAX_PAGES
+    ^^^^^^^^^^^^^^^^
+SyntaxError: name 'MAX_PAGES' is used prior to global declaration

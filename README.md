@@ -1,71 +1,159 @@
-# Amazon.co.jp ランク監視ツール (BS4-only / Server-Ready)
+# Amazon Search Rank Tracker
 
-指定した ASIN / キーワードの組み合わせで Amazon.co.jp を検索し、検索順位（絶対順位およびオーガニック順位）を調査します。
-Selenium を使用せず、`requests` と `BeautifulSoup` のみで動作するため、GitHub Actions や Google Cloud Run などのサーバーレス環境での定期実行に最適です。
+Amazon.co.jpで商品の検索順位を追跡するツールです。Selenium を使用して正確な広告検出とランキングを実現します。
 
-## 特徴
-- **高速・軽量**: ブラウザを起動しないため、高速に動作します。
-- **サーバーレス対応**: Chrome のインストールが不要で、Python 環境だけで動作します。
-- **詳細な順位データ**:
-  - `rank`: ページ内の絶対順位（スポンサー枠を含む）
-  - `organic_rank`: スポンサー枠を除いた自然検索順位
-- **プロキシ対応**: `--proxy` オプションでプロキシ経由のアクセスが可能。
+## 機能
 
-## 必要環境
-- Python 3.11 以上
-- `requests`
-- `beautifulsoup4`
+- **正確な広告検出**: Sponsored（広告）とOrganic（自然検索）を自動判定
+- **複数ページ対応**: 最大3ページまで自動検索
+- **スクリーンショット機能**: 検証用の全ページスクリーンショット撮影
+- **Cloud Run対応**: Google Cloud Run Jobsでの実行に対応
+
+## 必要要件
+
+- Python 3.9以上
+- Chrome ブラウザ（ローカル実行時）
 
 ## セットアップ
-1. 依存パッケージをインストール
-   ```bash
-   pip install -r requirement.txt
-   ```
-2. `input.csv` を編集し、監視したい ASIN / 検索語を設定します。
-   - 列構成: `ASIN,SEARCH TERM,ACTIVE`
-   - `ACTIVE` を `yes` にすると監視対象、`no` にするとスキップ
 
-## 使い方
+### 1. 依存パッケージのインストール
+
 ```bash
-python amazon_search_rank.py
+pip install -r requirements.txt
 ```
-- デフォルトでは各キーワードにつき最大 **3ページ** まで検索します。
-- ページ数を変更したい場合は `--pages` オプションを使用します（例: 5ページまで検索）。
-  ```bash
-  python amazon_search_rank.py --pages 5
-  ```
-- プロキシを使用する場合:
-  ```bash
-  python amazon_search_rank.py --proxy http://user:pass@host:port
-  ```
 
-## 順位取得ロジック
-本ツールは以下のロジックで順位を算出しています。
+### 2. 入力ファイルの準備
 
-1. **HTML取得**: `requests` ライブラリを使用して Amazon の検索結果ページ（HTML）を直接取得します。
-2. **解析 (Parsing)**: `BeautifulSoup` を使用して HTML を解析し、`data-component-type='s-search-result'` 属性を持つ要素を検索結果アイテムとして抽出します。
-3. **スポンサー判定**:
-   - アイテム内のテキストに「スポンサー」または「Sponsored」が含まれるか、`aria-label` にそれらの文言が含まれる場合を「スポンサー枠」と判定します。
-4. **順位計算**:
-   - **rank (絶対順位)**: ページの上から順に数えた単純な出現順序です（スポンサー枠もカウント）。
-   - **organic_rank (自然検索順位)**: スポンサー枠を除外してカウントした順位です。スポンサー枠の場合、この値は空になります。
-   - 複数ページにまたがる場合、前のページのアイテム数を加算して累積順位を算出します。
-5. **精度**: ブラウザで表示される内容と HTML ソースの構造に若干の差異がある場合があるため、実際の表示順位と ±1〜2 程度の誤差が生じることがあります（許容範囲として設計）。
+`input.csv` を以下の形式で作成：
 
-## 出力ファイルの構成
-結果は `@output` ディレクトリに CSV として保存されます。
+```csv
+ASIN,SEARCH TERM,ACTIVE
+B0DBSF1CZ6,お食事エプロン,yes
+B0DBSB6XY9,お食事エプロン,yes
+B0D88XNCHG,食事用エプロン,yes
+```
 
-| 列名 | 説明 |
-| ---- | ---- |
-| `timestamp` | 実行日時 |
-| `keyword` | 検索キーワード |
-| `asin` | 対象 ASIN |
-| `type` | `Organic` (自然検索) または `Sponsored Product` (広告) |
-| `page` | 発見されたページ番号 |
-| `rank` | 絶対順位 (広告含む) |
-| `organic_rank` | 自然検索順位 (広告除く) |
+- **ASIN**: 追跡する商品のASIN
+- **SEARCH TERM**: 検索キーワード
+- **ACTIVE**: yes/no（追跡するかどうか）
+
+## 使用方法
+
+### ローカル実行
+
+```bash
+# 基本実行
+python amazon_search_rank.py
+
+# スクリーンショット付き実行
+python amazon_search_rank.py --screenshot
+```
+
+### 出力
+
+実行後、`@output` ディレクトリに以下が生成されます：
+
+- `amazon_ranks_YYYYMMDD_HHMMSS.csv`: ランキング結果
+- `images/`: スクリーンショット（--screenshot オプション使用時）
+
+#### 出力CSV形式
+
+```csv
+timestamp,keyword,asin,type,page,rank,organic_rank
+2025-11-22T00:13:48,お食事エプロン,B0DBSF1CZ6,Sponsored,1,7,
+2025-11-22T00:13:49,お食事エプロン,B0DBSB6XY9,Organic,1,44,20
+```
+
+- **timestamp**: 検索実行日時
+- **keyword**: 検索キーワード
+- **asin**: 商品ASIN
+- **type**: Sponsored（広告）/ Organic（自然検索）
+- **page**: 見つかったページ番号
+- **rank**: 全体順位（広告含む）
+- **organic_rank**: 自然検索順位（Organicの場合のみ）
+
+## Cloud Run へのデプロイ
+
+### 1. GCPプロジェクトの設定
+
+```powershell
+# プロジェクトIDを設定
+$PROJECT_ID = "your-project-id"
+gcloud config set project $PROJECT_ID
+```
+
+### 2. デプロイスクリプトの実行
+
+```powershell
+.\deploy.ps1
+```
+
+または手動でデプロイ：
+
+```bash
+# Artifact Registryにイメージをビルド＆プッシュ
+gcloud builds submit --tag asia-northeast1-docker.pkg.dev/$PROJECT_ID/amazon-rank/amazon-rank-scraper
+
+# Cloud Run Jobを作成
+gcloud run jobs create amazon-rank-job \
+  --image asia-northeast1-docker.pkg.dev/$PROJECT_ID/amazon-rank/amazon-rank-scraper \
+  --region asia-northeast1 \
+  --memory 2Gi \
+  --cpu 1 \
+  --max-retries 1 \
+  --task-timeout 30m
+```
+
+### 3. Cloud Runでの実行
+
+```bash
+gcloud run jobs execute amazon-rank-job --region asia-northeast1
+```
+
+## プロジェクト構成
+
+```
+amazon-search-rank/
+├── amazon_search_rank.py   # メインスクリプト
+├── cloud_runner.py          # Cloud Run用エントリーポイント
+├── input.csv                # 入力ファイル
+├── requirements.txt         # 依存パッケージ
+├── Dockerfile               # Cloud Run用
+├── deploy.ps1               # デプロイスクリプト
+├── @output/                 # 出力ディレクトリ
+│   ├── amazon_ranks_*.csv
+│   └── images/
+└── archive/                 # 過去のファイル
+```
+
+## 広告検出の仕組み
+
+このツールは3つの方法で広告を検出します：
+
+1. **属性チェック**: `data-component-type` 属性に "sponsored" が含まれるか確認
+2. **バッジチェック**: 要素内の "スポンサー" バッジを検出
+3. **近接検出**: 商品要素の200px以内に "スポンサー" ラベルがあるか確認
 
 ## トラブルシューティング
-- **結果が空 (No results found)**:
-  - Amazon 側の仕様変更により HTML 構造が変わった可能性があります。
-  - アクセス過多によりブロックされている可能性があります。時間を空けるか、プロキシの使用を検討してください。
+
+### Chrome Driver エラー
+
+```bash
+# webdriver-manager が自動的にChromeDriverをダウンロードします
+# エラーが出る場合は手動でインストール：
+pip install --upgrade webdriver-manager
+```
+
+### タイムアウトエラー
+
+`amazon_search_rank.py` の `SPONSORED_PROXIMITY_THRESHOLD` や待機時間を調整してください。
+
+## ライセンス
+
+MIT License
+
+## 注意事項
+
+- Amazon.co.jpの利用規約を遵守してください
+- 過度なリクエストはIPアドレスがブロックされる可能性があります
+- 商用利用の場合は適切な間隔でリクエストを行ってください

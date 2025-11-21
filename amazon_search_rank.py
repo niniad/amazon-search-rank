@@ -150,7 +150,7 @@ def get_item_type(element, sponsored_label_cache=None) -> str:
     # 1. Check direct attributes (SP ads often have this)
     component_type = (element.get_attribute("data-component-type") or "").lower()
     if "sp-sponsored" in component_type or "sponsored" in component_type:
-        return "Sponsored Product"
+        return "Sponsored"
 
     # 2. Check badges inside the element (Standard SP label)
     try:
@@ -158,7 +158,7 @@ def get_item_type(element, sponsored_label_cache=None) -> str:
         for badge in badges:
             label = (badge.get_attribute("aria-label") or badge.text or "").lower()
             if "sponsored" in label or "スポンサー" in label:
-                return "Sponsored Product"
+                return "Sponsored"
     except Exception:
         pass
 
@@ -194,7 +194,7 @@ def get_item_type(element, sponsored_label_cache=None) -> str:
         for label_y, label_text in label_positions:
             distance = abs(label_y - item_y)
             if distance < 200:
-                return "Sponsored Section"
+                return "Sponsored"
                 
     except Exception:
         pass
