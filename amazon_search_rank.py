@@ -139,13 +139,17 @@ def take_screenshot(driver, keyword: str, page: int) -> None:
         LOGGER.warning(f"Failed to take screenshot: {e}")
 
 
-def get_item_type(element) -> str:
+def get_item_type(element, sponsored_label_cache=None) -> str:
     """Determine if an item is Organic, Sponsored Product, or other ad type.
-    Checks both the item itself and its parent containers.
+    Uses Y-coordinate proximity to detect sponsored sections.
+    
+    Args:
+        element: The WebElement to check
+        sponsored_label_cache: Optional list of (y_position, text) tuples for sponsored labels
     """
     # 1. Check direct attributes (SP ads often have this)
     component_type = (element.get_attribute("data-component-type") or "").lower()
-    if "sp-sponsored" in component_type:
+    if "sp-sponsored" in component_type or "sponsored" in component_type:
         return "Sponsored Product"
 
     # 2. Check badges inside the element (Standard SP label)
@@ -158,25 +162,40 @@ def get_item_type(element) -> str:
     except Exception:
         pass
 
-    # 3. Check Container/Section Level (Robust check for "Highly Rated", "Influencer", etc.)
-    # Look for a "Sponsored" label in the immediate widget container or parent sections.
-    # We traverse up to find the nearest 's-widget-container' or similar wrapper.
+    # 3. Y-coordinate based proximity detection
+    # Check if there's a "Sponsored" label within 200px of this element
     try:
-        # XPath to find a parent container that has text "Sponsored" or "スポンサー" in its header/label area.
-        # This is a heuristic: if the item is inside a container that says "Sponsored", it's an ad.
-        # We limit the search to close ancestors to avoid false positives from the page header.
+        item_y = element.location['y']
         
-        # Check if any ancestor (up to 3 levels) has "Sponsored" text visible
-        # This is expensive, so we try to be specific.
-        # Strategy: Find the closest 'div.s-widget-container' ancestor.
-        container = element.find_element(By.XPATH, "./ancestor::div[contains(@class, 's-widget-container')][1]")
-        container_text = container.text
+        # Use cached labels if provided, otherwise search
+        if sponsored_label_cache is not None:
+            label_positions = sponsored_label_cache
+        else:
+            # Fallback: search for labels (slower)
+            try:
+                driver = element.parent
+                labels = driver.find_elements(
+                    By.XPATH,
+                    "//*[contains(text(), 'スポンサー') or contains(text(), 'Sponsored')]"
+                )
+                label_positions = []
+                for label in labels:
+                    try:
+                        label_text = label.text or ''
+                        # Only consider short text (single word/phrase)
+                        if len(label_text) < 50:
+                            label_positions.append((label.location['y'], label_text))
+                    except:
+                        continue
+            except:
+                label_positions = []
         
-        if "スポンサー" in container_text or "Sponsored" in container_text:
-            return "Sponsored Section"
-            
-    except NoSuchElementException:
-        pass
+        # Check if any label is within 200px
+        for label_y, label_text in label_positions:
+            distance = abs(label_y - item_y)
+            if distance < 200:
+                return "Sponsored Section"
+                
     except Exception:
         pass
 
@@ -195,6 +214,27 @@ def process_page(
     take_shots: bool
 ) -> Tuple[List[Dict[str, Any]], int]:
     """Process a single page of results."""
+    
+    # Cache sponsored labels BEFORE screenshot (before any scrolling)
+    # This ensures we capture labels at the top of the page
+    sponsored_label_cache = []
+    try:
+        labels = driver.find_elements(
+            By.XPATH,
+            "//*[contains(text(), 'スポンサー') or contains(text(), 'Sponsored')]"
+        )
+        for label in labels:
+            try:
+                label_text = label.text or ''
+                # Only consider short text (single word/phrase)
+                if len(label_text) < 50:
+                    sponsored_label_cache.append((label.location['y'], label_text))
+            except:
+                continue
+    except Exception as e:
+        LOGGER.warning(f"Failed to cache sponsored labels: {e}")
+    
+    LOGGER.info(f"Found {len(sponsored_label_cache)} sponsored labels on page {page}")
     
     if take_shots:
         take_screenshot(driver, keyword, page)
@@ -311,7 +351,7 @@ def process_page(
         items_on_page += 1
         position_counter += 1
         
-        item_type = get_item_type(item)
+        item_type = get_item_type(item, sponsored_label_cache)
         
         if item_type == "Organic":
             organic_counter += 1
