@@ -36,7 +36,7 @@ if ($LASTEXITCODE -eq 0) {
       --memory 2Gi `
       --cpu 1 `
       --task-timeout 10m `
-      --set-env-vars "BUCKET_NAME=$BUCKET_NAME,TAKE_SCREENSHOTS=true" `
+      --set-env-vars "BUCKET_NAME=$BUCKET_NAME,TAKE_SCREENSHOTS=true,TZ=Asia/Tokyo" `
       --project $PROJECT_ID
 } else {
     Write-Host "Creating new job..."
@@ -48,7 +48,7 @@ if ($LASTEXITCODE -eq 0) {
       --cpu 1 `
       --max-retries 0 `
       --task-timeout 10m `
-      --set-env-vars "BUCKET_NAME=$BUCKET_NAME,TAKE_SCREENSHOTS=true" `
+      --set-env-vars "BUCKET_NAME=$BUCKET_NAME,TAKE_SCREENSHOTS=true,TZ=Asia/Tokyo" `
       --project $PROJECT_ID
 }
 

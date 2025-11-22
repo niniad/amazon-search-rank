@@ -91,11 +91,19 @@ def create_driver(headless: bool = True):
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--lang=ja-JP")
     # Use a realistic User-Agent
+    # Use a realistic User-Agent
     options.add_argument(
         "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/120.0.0.0 Safari/537.36"
     )
+    
+    # Force language preferences
+    prefs = {
+        "intl.accept_languages": "ja,ja-JP,en-US,en",
+        "profile.default_content_setting_values.notifications": 2
+    }
+    options.add_experimental_option("prefs", prefs)
 
     driver = webdriver.Chrome(
         service=Service(ChromeDriverManager().install()),
@@ -103,6 +111,56 @@ def create_driver(headless: bool = True):
     )
     driver.set_page_load_timeout(60)
     return driver
+
+
+def set_location_to_tokyo(driver) -> None:
+    """Ensure the delivery location is set to Tokyo (Zip: 100-0001)."""
+    try:
+        # Check current location label
+        try:
+            loc_label = driver.find_element(By.ID, "glow-ingress-line2").text
+            if "東京" in loc_label or "Tokyo" in loc_label or "Japan" in loc_label or "100-0001" in loc_label:
+                LOGGER.info(f"Location already set to: {loc_label}")
+                return
+        except:
+            pass
+
+        LOGGER.info("Setting location to Tokyo (100-0001)...")
+        
+        # Click location widget
+        driver.find_element(By.ID, "nav-global-location-popover-link").click()
+        time.sleep(2)
+        
+        # Input Zip Code
+        zip_input = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.ID, "GLUXZipUpdateInput"))
+        )
+        zip_input.clear()
+        zip_input.send_keys("100-0001")
+        
+        # Click Apply
+        driver.find_element(By.ID, "GLUXZipUpdate").click()
+        time.sleep(2)
+        
+        # Click Continue/Done if needed (sometimes it auto-reloads, sometimes needs confirmation)
+        try:
+            # Look for "Continue" or "Done" button in the popover footer
+            confirm_btn = driver.find_element(By.CSS_SELECTOR, "#GLUXConfirmClose, [name='glowDoneButton']")
+            confirm_btn.click()
+        except:
+            pass
+            
+        # Wait for reload
+        time.sleep(3)
+        LOGGER.info("Location update sequence completed.")
+        
+    except Exception as e:
+        LOGGER.warning(f"Failed to set location: {e}")
+        # Take debug screenshot for location failure
+        try:
+            driver.save_screenshot("location_error.png")
+        except:
+            pass
 
 
 def wait_for_results(driver) -> None:
@@ -405,6 +463,9 @@ def main():
         for keyword, asins in targets.items():
             LOGGER.info(f"Searching for: {keyword}")
             driver.get(AMAZON_URL)
+            
+            # Ensure location is set to Japan/Tokyo
+            set_location_to_tokyo(driver)
             
             try:
                 search_box = WebDriverWait(driver, 10).until(
