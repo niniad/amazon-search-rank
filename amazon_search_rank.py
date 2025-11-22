@@ -113,6 +113,26 @@ def create_driver(headless: bool = True):
     return driver
 
 
+def handle_captcha(driver) -> bool:
+    """Check for CAPTCHA and try to solve it (click button)."""
+    try:
+        if "validateCaptcha" in driver.page_source:
+            LOGGER.warning("CAPTCHA detected!")
+            # Try to find the button "ショッピングを続ける" or similar
+            try:
+                # Generic submit button usually works for the simple "Click to continue" captcha
+                button = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
+                button.click()
+                LOGGER.info("Clicked CAPTCHA button. Waiting...")
+                time.sleep(5)
+                return True
+            except:
+                LOGGER.error("Could not find CAPTCHA button.")
+    except Exception as e:
+        LOGGER.warning(f"Error checking CAPTCHA: {e}")
+    return False
+
+
 def set_location_to_tokyo(driver) -> None:
     """Ensure the delivery location is set to Tokyo (Zip: 100-0001)."""
     try:
@@ -483,6 +503,9 @@ def main():
         for keyword, asins in targets.items():
             LOGGER.info(f"Searching for: {keyword}")
             driver.get(AMAZON_URL)
+            
+            # Check and solve CAPTCHA if present
+            handle_captcha(driver)
             
             # Ensure location is set to Japan/Tokyo
             set_location_to_tokyo(driver)
