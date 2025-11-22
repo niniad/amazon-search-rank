@@ -116,14 +116,17 @@ def create_driver(headless: bool = True):
 def set_location_to_tokyo(driver) -> None:
     """Ensure the delivery location is set to Tokyo (Zip: 100-0001)."""
     try:
+        LOGGER.info(f"Page Title: {driver.title}")
+        
         # Check current location label
         try:
             loc_label = driver.find_element(By.ID, "glow-ingress-line2").text
+            LOGGER.info(f"Current location label: {loc_label}")
             if "東京" in loc_label or "Tokyo" in loc_label or "Japan" in loc_label or "100-0001" in loc_label:
                 LOGGER.info(f"Location already set to: {loc_label}")
                 return
-        except:
-            pass
+        except Exception as e:
+            LOGGER.warning(f"Could not read location label: {e}")
 
         LOGGER.info("Setting location to Tokyo (100-0001)...")
         
@@ -142,9 +145,8 @@ def set_location_to_tokyo(driver) -> None:
         driver.find_element(By.ID, "GLUXZipUpdate").click()
         time.sleep(2)
         
-        # Click Continue/Done if needed (sometimes it auto-reloads, sometimes needs confirmation)
+        # Click Continue/Done if needed
         try:
-            # Look for "Continue" or "Done" button in the popover footer
             confirm_btn = driver.find_element(By.CSS_SELECTOR, "#GLUXConfirmClose, [name='glowDoneButton']")
             confirm_btn.click()
         except:
@@ -156,9 +158,19 @@ def set_location_to_tokyo(driver) -> None:
         
     except Exception as e:
         LOGGER.warning(f"Failed to set location: {e}")
-        # Take debug screenshot for location failure
+        # Take debug screenshot for location failure and upload
         try:
-            driver.save_screenshot("location_error.png")
+            filename = "location_error.png"
+            driver.save_screenshot(filename)
+            
+            bucket_name = os.environ.get("BUCKET_NAME")
+            if bucket_name:
+                from google.cloud import storage
+                client = storage.Client()
+                bucket = client.bucket(bucket_name)
+                blob = bucket.blob(f"errors/{filename}")
+                blob.upload_from_filename(filename)
+                LOGGER.info(f"Uploaded location error screenshot to gs://{bucket_name}/errors/{filename}")
         except:
             pass
 
