@@ -13,6 +13,7 @@ import argparse
 import csv
 import datetime as dt
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -414,6 +415,25 @@ def main():
                 search_box.send_keys(Keys.ENTER)
             except TimeoutException:
                 LOGGER.error(f"Search box not found for {keyword}")
+                
+                # Take debug screenshot on error
+                try:
+                    timestamp = dt.datetime.now().strftime('%Y%m%d_%H%M%S')
+                    filename = f"error_{timestamp}_{keyword}.png"
+                    driver.save_screenshot(filename)
+                    LOGGER.info(f"Saved error screenshot: {filename}")
+                    
+                    # Upload to GCS if bucket is set
+                    bucket_name = os.environ.get("BUCKET_NAME")
+                    if bucket_name:
+                        from google.cloud import storage
+                        client = storage.Client()
+                        bucket = client.bucket(bucket_name)
+                        blob = bucket.blob(f"errors/{filename}")
+                        blob.upload_from_filename(filename)
+                        LOGGER.info(f"Uploaded error screenshot to gs://{bucket_name}/errors/{filename}")
+                except Exception as e:
+                    LOGGER.error(f"Failed to save error screenshot: {e}")
                 continue
 
             cumulative_offset = 0
