@@ -158,19 +158,27 @@ def set_location_to_tokyo(driver) -> None:
         
     except Exception as e:
         LOGGER.warning(f"Failed to set location: {e}")
-        # Take debug screenshot for location failure and upload
+        # Take debug screenshot and HTML for location failure
         try:
-            filename = "location_error.png"
-            driver.save_screenshot(filename)
+            filename_png = "location_error.png"
+            filename_html = "location_error.html"
+            driver.save_screenshot(filename_png)
+            with open(filename_html, "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
             
             bucket_name = os.environ.get("BUCKET_NAME")
             if bucket_name:
                 from google.cloud import storage
                 client = storage.Client()
                 bucket = client.bucket(bucket_name)
-                blob = bucket.blob(f"errors/{filename}")
-                blob.upload_from_filename(filename)
-                LOGGER.info(f"Uploaded location error screenshot to gs://{bucket_name}/errors/{filename}")
+                
+                blob_png = bucket.blob(f"errors/{filename_png}")
+                blob_png.upload_from_filename(filename_png)
+                
+                blob_html = bucket.blob(f"errors/{filename_html}")
+                blob_html.upload_from_filename(filename_html)
+                
+                LOGGER.info(f"Uploaded location error debug files to gs://{bucket_name}/errors/")
         except:
             pass
 
@@ -492,9 +500,14 @@ def main():
                 # Take debug screenshot on error
                 try:
                     timestamp = dt.datetime.now().strftime('%Y%m%d_%H%M%S')
-                    filename = f"error_{timestamp}_{keyword}.png"
-                    driver.save_screenshot(filename)
-                    LOGGER.info(f"Saved error screenshot: {filename}")
+                    filename_png = f"error_{timestamp}_{keyword}.png"
+                    filename_html = f"error_{timestamp}_{keyword}.html"
+                    
+                    driver.save_screenshot(filename_png)
+                    with open(filename_html, "w", encoding="utf-8") as f:
+                        f.write(driver.page_source)
+                    
+                    LOGGER.info(f"Saved error debug files: {filename_png}")
                     
                     # Upload to GCS if bucket is set
                     bucket_name = os.environ.get("BUCKET_NAME")
@@ -502,11 +515,16 @@ def main():
                         from google.cloud import storage
                         client = storage.Client()
                         bucket = client.bucket(bucket_name)
-                        blob = bucket.blob(f"errors/{filename}")
-                        blob.upload_from_filename(filename)
-                        LOGGER.info(f"Uploaded error screenshot to gs://{bucket_name}/errors/{filename}")
+                        
+                        blob_png = bucket.blob(f"errors/{filename_png}")
+                        blob_png.upload_from_filename(filename_png)
+                        
+                        blob_html = bucket.blob(f"errors/{filename_html}")
+                        blob_html.upload_from_filename(filename_html)
+                        
+                        LOGGER.info(f"Uploaded error debug files to gs://{bucket_name}/errors/")
                 except Exception as e:
-                    LOGGER.error(f"Failed to save error screenshot: {e}")
+                    LOGGER.error(f"Failed to save error debug info: {e}")
                 continue
 
             cumulative_offset = 0
